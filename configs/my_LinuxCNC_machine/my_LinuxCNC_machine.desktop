@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Terminal=false
+Name=launch my_LinuxCNC_machine
+Exec=linuxcnc /home/timfaber/linuxcnc/configs/my_LinuxCNC_machine/my_LinuxCNC_machine.ini
+Type=Application
+Comment=Desktop Launcher for LinuxCNC config made by PNCconf
+Icon=/usr/share/linuxcnc/linuxcncicon.png

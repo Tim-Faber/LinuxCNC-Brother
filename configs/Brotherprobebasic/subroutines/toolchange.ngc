@@ -1,0 +1,201 @@
+o<toolchange> sub
+(debug,toolchange start)
+;(debug,stop1)
+;(debug,z_max_limit = #<_hal[ini.2.max_limit]>)
+
+M73 (auto-restore modal settings on return)
+G17 G21 G40 G61 G80 G90 G94 G97 M9
+
+(check whether this code is run as preview. If so skip)
+o100 if [#<_task> EQ 0]
+	o<toolchange> return [1]
+o100 endif
+
+(check if spindle is initially indexed, otherwise indexing is unsafe)
+m66 P1 L0 Q1
+o169 if [#5399 NE 0]
+	(abort, spindle not indexed)
+	o<toolchange> return [0]
+o169 endif
+
+;-------------------------- Orient Spindle ------------
+(orient spindle NOT HGHER THEN Z>18 !!!!)
+;(debug,z position <+2 OK to m19 #<_z>)
+g04 p1
+m19 r0 p0 q5
+g04 p0.6
+m5
+
+
+g04 p0.1		(dwell 0.1s)
+
+;-------------------------- Calculate pocket task to move ------------
+m66 P11 L0 Q1
+#1=#5399
+m66 P12 L0 Q1
+#2=#5399
+m66 P13 L0 Q1
+#3=#5399
+m66 P14 L0 Q1
+#4=#5399
+
+#<current_pocket>=[[#1*1]+[#2*2]+[#3*4]+[#4*8]]
+
+
+#<counter>=0
+
+#<pocket> = #<selected_pocket>
+
+;(debug,current_pocket = #<current_pocket>)
+
+
+o170 if [#<selected_tool> LT 11]
+	(abort, tool numbers must be larger than 10. Don't mix up tool numbers with pocket numbers, recheck the tool table.)
+	#<pocket>=#<current_pocket>
+	o<toolchange> return [0]
+o170 else
+	;(debug,Selected tool >11 OK #<selected_tool>)
+o170 endif
+
+o180 if [#<current_pocket> EQ 0]
+	#<pocket>=#<current_pocket>
+	;(abort, ATC: current ATC pocket number invalid)
+	o<toolchange> return [0]
+o180 else
+	;(debug,Current Pocket >< 0 OK #<current_pocket>)
+o180 endif
+
+o120 if [#<pocket> GT 0]
+	#<newpocket>=#<pocket>
+o120 else
+	(abort, ATC: pocket number not positive)
+	#<newpocket>=#<current_pocket>
+	o<toolchange> return [0]
+o120 endif
+
+;(debug, Current pocket #<current_pocket>)
+;(debug, New Pocket #<newpocket>)
+
+o121 if [#<newpocket> EQ #<current_pocket>]
+	(debug, ATC: Pocket already selected.)
+	o<toolchange> return [1]
+	m2
+o121 endif
+
+
+#<movepos>=[#<newpocket>-#<current_pocket>]
+
+#<absmovepos>=ABS[#<movepos>]
+
+o111 if [#<absmovepos> GT 5]
+	#<shortmovepos>=[ABS[10-#<absmovepos>]]
+o111 endif
+
+#<finalmovepos>=#<absmovepos>
+;(debug,movepos #<movepos>)
+;(debug, selected_pocket #<selected_pocket>)
+
+
+;--------------------------Set ATC Direction RELAY -----------------
+o106 if [#<movepos> LT 0]
+	M64 p4
+	o119 if [#<absmovepos> GT 5]
+		M65 p4
+	#<finalmovepos>=#<shortmovepos>
+	o119 endif
+o106 else
+	M65 p4
+	o129 if [#<absmovepos> GT 5]
+		M64 p4
+	#<finalmovepos>=#<shortmovepos>
+	o129 endif
+o106 endif
+
+;(debug,finalmovepos  #<finalmovepos>)
+
+
+
+
+
+;--------------------------------- MOVE ATC ---------------------
+;(unlock z-travel for ATC range. send true to z-limit-mux.sel--> z-limit-max is set to z-limit-maz-atc)
+m64 p1
+;(debug,Extend z_max_limit = #<_hal[ini.2.max_limit]>)
+
+m66 P16 L0 Q1
+;(debug,ATC-home state  #5399)
+
+;(move to ATC home position)
+;(debug,move to Z=136)
+G53 G1 Z218 F10000
+
+;(check whether at ATC home)
+m66 P16 L0 Q1
+#<atcready>=#5399
+;(debug,ATC-home state  #5399)
+
+
+o112 if [#<atcready> EQ 1]
+	;(debug,ATC-home OK)
+	o104 if [#<current_pocket> NE #<newpocket>]
+		m64 p3
+		
+		o101 while [#<counter> LT [#<finalmovepos>]]
+			m66 P10 L2 Q1
+			#<counter>=[#<counter>+1]
+			;(debug,counter #<counter>)
+		o101 endwhile
+		g4 p.2
+		m65 p3
+		m65 p4
+	o104 else
+		;(abort, ATC: failed because already on that pocket)
+	o104 endif
+o112 else
+	(abort, ATC: not at ATC HOME abort)
+	o<toolchange> return [0]
+o112 endif
+
+;(read current pocket number from encoders)
+m66 P11 L0 Q1
+#1=#5399
+m66 P12 L0 Q1
+#2=#5399
+m66 P13 L0 Q1
+#3=#5399
+m66 P14 L0 Q1
+#4=#5399
+#<current_pocket>=[[#1*1]+[#2*2]+[#3*4]+[#4*8]]
+
+;(read dec pin to check alignment)
+m66 P10 L0 Q1
+#<notaligned>=#5399
+
+o150 if [#<notaligned> NE 1]
+	(abort, ATC: ATC not aligned or between stations.)
+	o<toolchange> return [0]
+o150 elseif [#<newpocket> NE #<current_pocket>]
+	(abort, ATC: ATC on the wrong pocket.)
+	return
+o150 else
+	(debug,SEEMS OK!!! STOP :)
+
+	#<tool_in_spindle>=#<selected_pocket>
+	G53 G1 Z0 F10000
+	(lock z-travel again)
+	m65 p1
+	(confirm tool change to iocontrol.0.tool-changed via hal wiring)
+	m64 p0
+	
+	
+o150 endif
+
+o<toolchange> endsub [1]
+
+m2
+
+;--------------------------STOP-----------------------
+(debug,STOP :)
+o<toolchange> return [1]
+m2		
+;-----------------------------------------------------

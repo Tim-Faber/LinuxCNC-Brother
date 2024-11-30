@@ -1,0 +1,101 @@
+o<toolprobe1> SUB
+
+; This subroutine probes the length of the tool, passed as parameter #1.
+; The tool length is calculated, saved, and the offset activated.
+
+#<tls_tool>=#5400 ; Tool to measure
+
+; The following are initialized in toolprobe0.ngc
+; #<_tls_home_z>=#5422       ; Machine Z-coordinate at home position
+
+;Nullen van gereedschap na verandering in taster op toolprobe:
+;Ref lengte bepalen met 60mm eindmaat tussen spindelneus en toolprobe en hieronder invullen
+;Freeslengte nullen; stukje frezen; taster op nul op gefreesde vlak met G43 G54;
+;Taster gelijk zetten met "tool touch off" 
+
+
+#<_tls_ref_len>= -134.639            ; Reference length (nose of spindle)
+
+; The X and Y values depend on the position of the tool
+; length sensor relative to home position. Edit these as
+; needed to center the spindle above the sensor. These
+; are machine coordinates. The G92 offset is added, if active,
+; to center the high-speed spindle above the probe.
+#<tls_x_pos>=[16 + #5211 * #5210]
+#<tls_y_pos>=[250 + #5212 * #5210]
+
+G17 ; XY plane
+G21 ; MM
+G40 ; Cancel tool radius compensation
+G49 ; Cancel tool length compensation
+G80 ; Cancel canned cycle
+G94 ; Units / min feedrate
+;G91 ; Incremental mode (tf: gives weird error, something with remap??)
+
+T#<tls_tool> M6
+
+M5 M9 ; Turn off spindle and coolant.
+
+; Move to centered above the tool length sensor.
+G53 G0 Z0
+G53 G0 X#<tls_x_pos> Y#<tls_y_pos>
+
+; The G38 variants used below will stop execution and display an error 
+; message if probing is not successful. Alternatively, one could use the
+; non-error-signaling varieties and check #5070, which will be 1 after
+; probing is successful and otherwise 0. That would provide a means to
+; turn off the air blast on an error.
+
+; Probe towards the tool length sensor, slow enough that machine can
+; stop within travel of sensor. Tool length maximum approach speed
+; from specification is 200mm/min.
+G59.3
+G38.2 F[500] Z-155
+
+M65 P0 ; Turn off air blast
+
+G4 P0.5 ; Short delay to settle motion. Necessary with path blending?
+
+; Probe away from tool length sensor slowly, in the same direction
+; that home was probed, to minimize backlash error.
+G38.4 F[10] Z0
+
+; Back away and then probe towards tool length sensor slowly.
+; G1 F[10] Z[2]
+; G38.2 F[10] Z-1
+
+; If repeating measurement, move only a little away
+; G1 F40 Z.25
+
+G90 ; Absolute mode
+
+; Calculate absolute probe position.
+; #5063 is Z position in the coordinate system in which G38 was executed.
+; From https://forum.linuxcnc.org/20-g-code/35746-how-to-save-machine-coordinates-with-tool-length-compensation#123021
+#<abs_probed_z_pos> = [#[5203 + [20 * #5220]] + #5063]
+
+; Calculate and save the length of the selected tool. The length is calculated
+; using the probed position of the reference (the spindle nose) and the probed
+; position of the current tool. The difference, in machine coordinates, is the
+; current tool's length.
+; #<tls_tool_length> = [#<_tls_ref_len> + #<_tls_home_z> + #<abs_probed_z_pos>]
+#<tls_tool_length> = [#<_tls_ref_len> + #<abs_probed_z_pos>]
+G10 L1 P#<tls_tool> Z#<tls_tool_length>
+
+; Enable tool length compensation, using new length.
+G43
+
+(debug, T#<tls_tool> H=#<tls_tool_length>)
+; If repeating measurements, is nice to log it.
+; (print, H=#<tls_tool_length>)
+
+; If repeating measurements, disable this.
+G53 G0 Z0
+G54
+
+
+o<toolprobe1> ENDSUB [1]
+
+M2
+
+%

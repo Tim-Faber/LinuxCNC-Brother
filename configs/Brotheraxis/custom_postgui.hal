@@ -1,0 +1,13 @@
+# Include your custom_postgui HAL commands here
+# This file will not be overwritten when you run PNCconf again
+# switch z-axis soft limits, part 2
+net z-limit-out => ini.z.max_limit ini.2.max_limit
+
+# set up the rapid to home button
+#net rapid-to-home halui.mdi-command-00 <= pyvcp.rapid-to-home
+net toolprobe1 halui.mdi-command-00 <= pyvcp.toolprobe1
+net toolprobe0 halui.mdi-command-01 <= pyvcp.toolprobe0
+
+# set up the touch plate button
+#net laserzero halui.mdi-command-01 <= pyvcp.laserzero
+

@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pyvcp>
+ 
+  <hbox>
+    <relief>RAISED</relief>
+    <bd>5</bd>			
+    <button> 
+      <halpin>"toolprobe1"</halpin>
+      <text>"Probe Current"</text>
+      <font>('Fixed',14)</font>
+      <width>10</width>
+    </button>
+  </hbox>
+ 
+  <hbox>
+    <relief>RAISED</relief>
+    <bd>5</bd>			
+    <button> 
+      <halpin>"toolprobeall"</halpin>
+      <text>"Probe All"</text>
+      <font>('Fixed',14)</font>
+      <width>10</width>
+    </button>
+  </hbox>  
+  
+  <hbox>
+    <relief>RAISED</relief>
+    <bd>5</bd>			
+    <button> 
+      <halpin>"toolprobe0"</halpin>
+      <text>"Toolprobe0"</text>
+      <font>('Fixed',14)</font>
+      <width>10</width>
+    </button>
+  </hbox>
+  
+
+</pyvcp>
